@@ -1,0 +1,51 @@
+﻿@model ConsumeCampaignAPI.Models.PurchaseModel
+
+@{
+    ViewData["Title"] = "createPurchase";
+}
+
+<h1>Create purchase</h1>
+
+<br/>
+
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="createPurchase">
+            <div class="form-group">
+                <label asp-for="AgentId" class="control-label">Agent ID:</label>
+                <input asp-for="AgentId" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="CustomerId" class="control-label">Customer ID:</label>
+                <input asp-for="CustomerId" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="CampaignId" class="control-label">Campaign ID:</label>
+                <input asp-for="CampaignId" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="Price" class="control-label">Price:</label>
+                <input asp-for="Price" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="Discount" class="control-label">Discount:</label>
+                <input asp-for="Discount" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label asp-for="PurchaseDate" class="control-label">Purchase Date:</label>
+                <input asp-for="PurchaseDate" class="form-control" required>
+            </div>
+            <br/>
+            <div class="form-group">
+                <input type="Submit" value="Create" class="btn btn-primary"/>
+            </div>
+
+        </form>
+    </div>
+    @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+</div>
