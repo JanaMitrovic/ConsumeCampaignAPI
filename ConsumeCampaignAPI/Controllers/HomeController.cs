@@ -23,6 +23,7 @@ namespace ConsumeCampaignAPI.Controllers
         {
             return View();
         }
+
         public async Task<ActionResult> Login(LoginModel loginModel)
         {
             using (var client = new HttpClient())
@@ -63,7 +64,57 @@ namespace ConsumeCampaignAPI.Controllers
 
             return View();
         }
+        public async Task<ActionResult<string>> startCampaign(CampaignModel campaign)
+        {
+            CampaignModel campaignObject = new CampaignModel()
+            {
+                Company = campaign.Company,
+                CampaignName = campaign.CampaignName,
+                StartDate = campaign.StartDate
+            };
 
+            if (campaign.Company != null && campaign.CampaignName != null && campaign.StartDate != null)
+            {
+                //Get token from Session
+                string token = HttpContext.Session.GetString("Token");
+
+                if (!string.IsNullOrEmpty(token))
+                {
+                    using (var client = new HttpClient())
+                    {
+                        client.BaseAddress = new Uri(baseURL);
+                        client.DefaultRequestHeaders.Accept.Clear();
+                        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                        HttpResponseMessage getData = await client.PostAsJsonAsync<CampaignModel>("startCampaign", campaignObject);
+
+                        if (getData.IsSuccessStatusCode)
+                        {
+                            return RedirectToAction("createPurchase");
+                        }
+                        else if (getData.StatusCode == HttpStatusCode.BadRequest)
+                        {
+                            var responseContent = await getData.Content.ReadAsStringAsync();
+                            dynamic responseObject = JsonConvert.DeserializeObject(responseContent);
+                            string errorMessage = responseObject.CustomError[0].ToString();
+
+                            ModelState.AddModelError(string.Empty, errorMessage);
+                        }
+                        else
+                        {
+                            ModelState.AddModelError(string.Empty, "Error communicating to API!");
+                        }
+                    }
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "There is no token in Session!");
+                }
+            }
+
+            return View();
+        }
         public async Task<ActionResult<string>> createPurchase(PurchaseModel purchase)
         {
             PurchaseModel purchaseObject = new PurchaseModel()
@@ -118,17 +169,15 @@ namespace ConsumeCampaignAPI.Controllers
 
             return View();
         }
-
-        public async Task<ActionResult<string>> startCampaign(CampaignModel campaign)
+        public async Task<ActionResult<string>> getCsvReport(GetCsvModel getCsv)
         {
-            CampaignModel campaignObject = new CampaignModel()
+            GetCsvModel getCsvObject = new GetCsvModel()
             {
-                Company = campaign.Company,
-                CampaignName = campaign.CampaignName,
-                StartDate = campaign.StartDate
+                CampaignId = getCsv.CampaignId,
+                CurrentDate = getCsv.CurrentDate
             };
 
-            if (campaign.Company != null && campaign.CampaignName != null && campaign.StartDate != null)
+            if (getCsv.CampaignId != 0 && getCsv.CurrentDate != null)
             {
                 //Get token from Session
                 string token = HttpContext.Session.GetString("Token");
@@ -142,11 +191,27 @@ namespace ConsumeCampaignAPI.Controllers
                         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                        HttpResponseMessage getData = await client.PostAsJsonAsync<CampaignModel>("startCampaign", campaignObject);
+                        HttpResponseMessage getData = await client.PostAsJsonAsync<GetCsvModel>("getCsvReport", getCsvObject);
 
                         if (getData.IsSuccessStatusCode)
                         {
-                            return RedirectToAction("createPurchase");
+                            // Check if the response is a file
+                            if (getData.Content.Headers.ContentType.MediaType == "text/csv")
+                            {
+                                // Get the response content as a stream
+                                var stream = await getData.Content.ReadAsStreamAsync();
+
+                                // Create a FileStreamResult to return the CSV file
+                                return new FileStreamResult(stream, "text/csv")
+                                {
+                                    FileDownloadName = "successfulPurchases.csv"
+                                };
+                            }
+                            else
+                            {
+                                ModelState.AddModelError(string.Empty, "Unexpected response format. Expected CSV.");
+                            }
+                            //return RedirectToAction("getCsvReport");
                         }
                         else if (getData.StatusCode == HttpStatusCode.BadRequest)
                         {
@@ -170,6 +235,61 @@ namespace ConsumeCampaignAPI.Controllers
 
             return View();
         }
+
+        public async Task<IActionResult> showReportData(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                ModelState.AddModelError("CustomError", "File is missing or empty!");
+                return View(); // Render the view with validation errors
+            }
+
+            string token = HttpContext.Session.GetString("Token");
+
+            using (var client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(baseURL);
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                var formData = new MultipartFormDataContent();
+                formData.Add(new StreamContent(file.OpenReadStream()), "file", file.FileName);
+
+                // Make a POST request to the ShowReportData endpoint with the file
+                HttpResponseMessage response = await client.PostAsync("showReportData", formData);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var csvResponseList = JsonConvert.DeserializeObject<List<CsvResponseModel>>(responseContent);
+
+                    var viewModel = new CsvReportViewModel
+                    {
+                        CsvResponseList = csvResponseList
+                    };
+
+                    return View("showReportData", viewModel); // Render the view with response data
+
+
+                }
+                else if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    dynamic responseObject = JsonConvert.DeserializeObject(responseContent);
+                    string errorMessage = responseObject.CustomError[0].ToString();
+
+                    ModelState.AddModelError(string.Empty, errorMessage);
+                    return View();
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "Error communicating with the API!");
+                    return View();
+                }
+            }
+        }
+
 
         public IActionResult Privacy()
         {

@@ -1,0 +1,55 @@
+﻿@model CsvReportViewModel
+
+<h2>Upload CSV File</h2>
+
+@using (Html.BeginForm("showReportData", "Home", FormMethod.Post, new { enctype = "multipart/form-data" }))
+{
+    <div class="form-group">
+        <label for="file">Select a CSV file:</label>
+        <input type="file" name="file" id="file" accept=".csv" required />
+    </div>
+    <br/>
+    <button type="submit" class="btn btn-primary">Upload and Get Report</button>
+    <br/>
+}
+
+@if (Model != null && Model.CsvResponseList != null)
+{
+    <h2>CSV Report Data</h2>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Agent Name</th>
+                <th>Agent Surname</th>
+                <th>Agent Email</th>
+                <th>Campaign Name</th>
+                <th>Price</th>
+                <th>Discount</th>
+                <th>Price with Discount</th>
+                <th>Purchase Date</th>
+                <th>Customer Name</th>
+                <th>Customer SSN</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.CsvResponseList)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.AgentName</td>
+                    <td>@item.AgentSurname</td>
+                    <td>@item.AgentEmail</td>
+                    <td>@item.CampaignName</td>
+                    <td>@item.Price</td>
+                    <td>@item.Discount</td>
+                    <td>@item.PriceWithDiscount</td>
+                    <td>@item.PurchaseDate</td>
+                    <td>@item.Customer.Name</td>
+                    <td>@item.Customer.SSN</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
