@@ -47,7 +47,6 @@ namespace ConsumeCampaignAPI.Controllers
                         string tokenValue = responseObj.token;
                         //Save token value in the Session
                         HttpContext.Session.SetString("Token", tokenValue);
-                        Console.WriteLine("login: " + tokenValue);
 
                         return RedirectToAction("startCampaign");
                     }
@@ -66,13 +65,6 @@ namespace ConsumeCampaignAPI.Controllers
         }
         public async Task<ActionResult<string>> startCampaign(CampaignModel campaign)
         {
-            CampaignModel campaignObject = new CampaignModel()
-            {
-                Company = campaign.Company,
-                CampaignName = campaign.CampaignName,
-                StartDate = campaign.StartDate
-            };
-
             if (campaign.Company != null && campaign.CampaignName != null && campaign.StartDate != null)
             {
                 //Get token from Session
@@ -87,7 +79,8 @@ namespace ConsumeCampaignAPI.Controllers
                         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                        HttpResponseMessage getData = await client.PostAsJsonAsync<CampaignModel>("startCampaign", campaignObject);
+                        //Send POST requst to web api for starting campaign
+                        HttpResponseMessage getData = await client.PostAsJsonAsync<CampaignModel>("startCampaign", campaign);
 
                         if (getData.IsSuccessStatusCode)
                         {
@@ -117,16 +110,6 @@ namespace ConsumeCampaignAPI.Controllers
         }
         public async Task<ActionResult<string>> createPurchase(PurchaseModel purchase)
         {
-            PurchaseModel purchaseObject = new PurchaseModel()
-            {
-                AgentId = purchase.AgentId,
-                CustomerId = purchase.CustomerId,
-                CampaignId = purchase.CampaignId,
-                Price = purchase.Price,
-                Discount = purchase.Discount,
-                PurchaseDate = purchase.PurchaseDate
-            };
-
             if(purchase.AgentId != null && purchase.CustomerId != null && purchase.CampaignId != null && purchase.Price != 0 && purchase.Discount != 0 && purchase.PurchaseDate != null)
             {
                 //Get token from Session
@@ -141,7 +124,8 @@ namespace ConsumeCampaignAPI.Controllers
                         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                        HttpResponseMessage getData = await client.PostAsJsonAsync<PurchaseModel>("createPurchase", purchaseObject);
+                        //Send POST request for creating purchase
+                        HttpResponseMessage getData = await client.PostAsJsonAsync<PurchaseModel>("createPurchase", purchase);
 
                         if (getData.IsSuccessStatusCode)
                         {
@@ -171,12 +155,6 @@ namespace ConsumeCampaignAPI.Controllers
         }
         public async Task<ActionResult<string>> getCsvReport(GetCsvModel getCsv)
         {
-            GetCsvModel getCsvObject = new GetCsvModel()
-            {
-                CampaignId = getCsv.CampaignId,
-                CurrentDate = getCsv.CurrentDate
-            };
-
             if (getCsv.CampaignId != 0 && getCsv.CurrentDate != null)
             {
                 //Get token from Session
@@ -191,17 +169,17 @@ namespace ConsumeCampaignAPI.Controllers
                         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                        HttpResponseMessage getData = await client.PostAsJsonAsync<GetCsvModel>("getCsvReport", getCsvObject);
+                        //Send POST request for getting .csv campaign report
+                        HttpResponseMessage getData = await client.PostAsJsonAsync<GetCsvModel>("getCsvReport", getCsv);
 
                         if (getData.IsSuccessStatusCode)
                         {
-                            // Check if the response is a file
+                            //Check if file is in .csv format
                             if (getData.Content.Headers.ContentType.MediaType == "text/csv")
                             {
-                                // Get the response content as a stream
+                                //Get response content as stream
                                 var stream = await getData.Content.ReadAsStreamAsync();
-
-                                // Create a FileStreamResult to return the CSV file
+                                //Send file throw stream
                                 return new FileStreamResult(stream, "text/csv")
                                 {
                                     FileDownloadName = "successfulPurchases.csv"
@@ -211,7 +189,6 @@ namespace ConsumeCampaignAPI.Controllers
                             {
                                 ModelState.AddModelError(string.Empty, "Unexpected response format. Expected CSV.");
                             }
-                            //return RedirectToAction("getCsvReport");
                         }
                         else if (getData.StatusCode == HttpStatusCode.BadRequest)
                         {
@@ -235,15 +212,15 @@ namespace ConsumeCampaignAPI.Controllers
 
             return View();
         }
-
         public async Task<IActionResult> showReportData(IFormFile file)
         {
             if (file == null || file.Length == 0)
             {
                 ModelState.AddModelError("CustomError", "File is missing or empty!");
-                return View(); // Render the view with validation errors
+                return View();
             }
 
+            //Get token from Session
             string token = HttpContext.Session.GetString("Token");
 
             using (var client = new HttpClient())
@@ -253,10 +230,11 @@ namespace ConsumeCampaignAPI.Controllers
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+                //Define getting .csv report from file field from the request
                 var formData = new MultipartFormDataContent();
                 formData.Add(new StreamContent(file.OpenReadStream()), "file", file.FileName);
 
-                // Make a POST request to the ShowReportData endpoint with the file
+                //Send POST reqest for showing report data
                 HttpResponseMessage response = await client.PostAsync("showReportData", formData);
 
                 if (response.IsSuccessStatusCode)
@@ -264,13 +242,13 @@ namespace ConsumeCampaignAPI.Controllers
                     var responseContent = await response.Content.ReadAsStringAsync();
                     var csvResponseList = JsonConvert.DeserializeObject<List<CsvResponseModel>>(responseContent);
 
+                    //Pass response data to view
                     var viewModel = new CsvReportViewModel
                     {
                         CsvResponseList = csvResponseList
                     };
 
-                    return View("showReportData", viewModel); // Render the view with response data
-
+                    return View("showReportData", viewModel);
 
                 }
                 else if (response.StatusCode == HttpStatusCode.BadRequest)
@@ -289,7 +267,6 @@ namespace ConsumeCampaignAPI.Controllers
                 }
             }
         }
-
 
         public IActionResult Privacy()
         {
