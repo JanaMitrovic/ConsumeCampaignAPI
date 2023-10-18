@@ -1,6 +1,7 @@
 ﻿using ConsumeCampaignAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Data;
 using System.Diagnostics;
 using System.Net;
@@ -22,6 +23,46 @@ namespace ConsumeCampaignAPI.Controllers
         {
             return View();
         }
+        public async Task<ActionResult> Login(LoginModel loginModel)
+        {
+            using (var client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(baseURL + "/authorization/");
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                //Set login credentials in the request body
+                HttpResponseMessage loginResponse = await client.PostAsJsonAsync("login", loginModel);
+
+                if (loginResponse.IsSuccessStatusCode)
+                {
+                    //Get token data from the response
+                    var responseContent = await loginResponse.Content.ReadAsStringAsync();
+                    var responseObj = JsonConvert.DeserializeObject<TokenResponse>(responseContent);
+
+                    if (responseObj != null)
+                    {
+                        //Get Token value
+                        string tokenValue = responseObj.token;
+                        //Save token value in the Session
+                        HttpContext.Session.SetString("Token", tokenValue);
+                        Console.WriteLine("login: " + tokenValue);
+
+                        return RedirectToAction("createPurchase");
+                    }
+                }
+                else if (loginResponse.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    ModelState.AddModelError(string.Empty, "Login failed. Please check your credentials.");
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "Login failed.");
+                }
+            }
+
+            return View();
+        }
 
         public async Task<ActionResult<string>> createPurchase(PurchaseModel purchase)
         {
@@ -37,30 +78,41 @@ namespace ConsumeCampaignAPI.Controllers
 
             if(purchase.AgentId != null && purchase.CustomerId != null && purchase.CampaignId != null && purchase.Price != 0 && purchase.Discount != 0 && purchase.PurchaseDate != null)
             {
-                using (var client = new HttpClient())
+                //Get token from Session
+                string token = HttpContext.Session.GetString("Token");
+                
+                if (!string.IsNullOrEmpty(token))
                 {
-                    client.BaseAddress = new Uri(baseURL);
-                    client.DefaultRequestHeaders.Accept.Clear();
-                    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                    HttpResponseMessage getData = await client.PostAsJsonAsync<PurchaseModel>("createPurchase", purchaseObject);
-
-                    if (getData.IsSuccessStatusCode)
+                    using (var client = new HttpClient())
                     {
-                        return RedirectToAction("createPurchase");
-                    }
-                    else if (getData.StatusCode == HttpStatusCode.BadRequest)
-                    {
-                        var responseContent = await getData.Content.ReadAsStringAsync();
-                        dynamic responseObject = JsonConvert.DeserializeObject(responseContent);
-                        string errorMessage = responseObject.CustomError[0].ToString();
+                        client.BaseAddress = new Uri(baseURL);
+                        client.DefaultRequestHeaders.Accept.Clear();
+                        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                        ModelState.AddModelError(string.Empty, errorMessage);
+                        HttpResponseMessage getData = await client.PostAsJsonAsync<PurchaseModel>("createPurchase", purchaseObject);
+
+                        if (getData.IsSuccessStatusCode)
+                        {
+                            return RedirectToAction("createPurchase");
+                        }
+                        else if (getData.StatusCode == HttpStatusCode.BadRequest)
+                        {
+                            var responseContent = await getData.Content.ReadAsStringAsync();
+                            dynamic responseObject = JsonConvert.DeserializeObject(responseContent);
+                            string errorMessage = responseObject.CustomError[0].ToString();
+
+                            ModelState.AddModelError(string.Empty, errorMessage);
+                        }
+                        else
+                        {
+                            ModelState.AddModelError(string.Empty, "Error communicating to API!");
+                        }
                     }
-                    else
-                    {
-                        ModelState.AddModelError(string.Empty, "An error occurred while communicating with the API.");
-                    }
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "There is no token in Session!");
                 }
             }
 
