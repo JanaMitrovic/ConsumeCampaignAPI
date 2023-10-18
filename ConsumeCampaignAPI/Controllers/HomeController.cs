@@ -48,7 +48,7 @@ namespace ConsumeCampaignAPI.Controllers
                         HttpContext.Session.SetString("Token", tokenValue);
                         Console.WriteLine("login: " + tokenValue);
 
-                        return RedirectToAction("createPurchase");
+                        return RedirectToAction("startCampaign");
                     }
                 }
                 else if (loginResponse.StatusCode == HttpStatusCode.Unauthorized)
@@ -91,6 +91,58 @@ namespace ConsumeCampaignAPI.Controllers
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
                         HttpResponseMessage getData = await client.PostAsJsonAsync<PurchaseModel>("createPurchase", purchaseObject);
+
+                        if (getData.IsSuccessStatusCode)
+                        {
+                            return RedirectToAction("createPurchase");
+                        }
+                        else if (getData.StatusCode == HttpStatusCode.BadRequest)
+                        {
+                            var responseContent = await getData.Content.ReadAsStringAsync();
+                            dynamic responseObject = JsonConvert.DeserializeObject(responseContent);
+                            string errorMessage = responseObject.CustomError[0].ToString();
+
+                            ModelState.AddModelError(string.Empty, errorMessage);
+                        }
+                        else
+                        {
+                            ModelState.AddModelError(string.Empty, "Error communicating to API!");
+                        }
+                    }
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "There is no token in Session!");
+                }
+            }
+
+            return View();
+        }
+
+        public async Task<ActionResult<string>> startCampaign(CampaignModel campaign)
+        {
+            CampaignModel campaignObject = new CampaignModel()
+            {
+                Company = campaign.Company,
+                CampaignName = campaign.CampaignName,
+                StartDate = campaign.StartDate
+            };
+
+            if (campaign.Company != null && campaign.CampaignName != null && campaign.StartDate != null)
+            {
+                //Get token from Session
+                string token = HttpContext.Session.GetString("Token");
+
+                if (!string.IsNullOrEmpty(token))
+                {
+                    using (var client = new HttpClient())
+                    {
+                        client.BaseAddress = new Uri(baseURL);
+                        client.DefaultRequestHeaders.Accept.Clear();
+                        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                        HttpResponseMessage getData = await client.PostAsJsonAsync<CampaignModel>("startCampaign", campaignObject);
 
                         if (getData.IsSuccessStatusCode)
                         {
